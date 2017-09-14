@@ -12,7 +12,7 @@ type Foo struct {
 }
 
 func TestFunctionCall(t *testing.T) {
-	fn := func(ctx *Context) (val interface{}, err error) {
+	fn := func(ctx *State) (val interface{}, err error) {
 		if ctx.Attempts > 3 {
 			return &Foo { 42, "blort" }, nil
 		}
@@ -24,7 +24,12 @@ func TestFunctionCall(t *testing.T) {
 		MaxAttempts: 10,
 	}
 
-	rv, ctx := r.Execute(fn)
+	rv, e, ctx := r.Execute(fn)
+
+	if e != nil {
+		return
+		}
+
 
 	fmt.Printf("rv=%v ctx=%v\n", rv, ctx)
 }

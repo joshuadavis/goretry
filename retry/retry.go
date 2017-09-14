@@ -3,12 +3,11 @@ package retry
 import (
 	"errors"
 	"time"
-	"database/sql"
 )
 
 type StopReason int16
 
-type Function func(ctx *Context) (interface{}, error)
+type Function func(state *State) (interface{}, error)
 
 const (
 	Success             StopReason = iota
@@ -17,7 +16,7 @@ const (
 	MaxDurationExceeded
 )
 
-type Context struct {
+type State struct {
 	StartTimestamp time.Time
 	Attempts       int
 	Reason         StopReason
@@ -29,18 +28,19 @@ type Config struct {
 	MaxAttempts int
 	MaxDuration time.Duration        // Retry time limit.
 	RetryError  func(err error) bool // Returns true if function can be retried.
+	// backoffConfig SomeBackoffInterfaceUnionThing?
 }
 
 func ShouldRetry(err error) bool {
 	return err != nil
 }
 
-func (r *Config) Execute(f Function) (interface{}, error, *Context) {
+func (r *Config) Execute(f Function) (interface{}, error, *State) {
 	if r.RetryError == nil {
 		r.RetryError = ShouldRetry
 	}
 
-	ctx := Context{
+	ctx := State{
 		StartTimestamp: time.Now(),
 		Attempts:       0,
 		Err:            nil,
@@ -63,17 +63,18 @@ func (r *Config) Execute(f Function) (interface{}, error, *Context) {
 			time.Sleep(backoffDuration)
 		}
 	}
+	panic("How did you get here?")
 }
 
-func (r *Config) computeBackoff(ctx *Context) time.Duration {
+func (r *Config) computeBackoff(ctx *State) time.Duration {
 	// TODO: Fixed and exponential backoff.
 	return time.Duration(100 * time.Millisecond)
 	// exponential =
 }
 
-func (r *Config) shouldRetry(ctx *Context, err error) bool {
+func (r *Config) shouldRetry(ctx *State, err error) bool {
 	if !r.RetryError(ctx.Err) {
-		ctx.stop(MaxAttemptsExceeded, nil)
+		ctx.stop(NonRetryableError, "")
 		return false
 	}
 
@@ -93,8 +94,8 @@ func (r *Config) shouldRetry(ctx *Context, err error) bool {
 	return true
 }
 
-func (ctx *Context) stop(reason StopReason, msg string) {
-	if ctx.Err == nil {
+func (ctx *State) stop(reason StopReason, msg string) {
+	if ctx.Err == nil && msg != "" {
 		ctx.Err = errors.New(msg)
 	}
 	ctx.Reason = reason
